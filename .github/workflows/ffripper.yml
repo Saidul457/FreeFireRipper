@@ -11,9 +11,15 @@ jobs:
   build:
     name: Free Fire Ripper Lab Running
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 360  # Ensure the job timeout is 6 hours
 
     steps:
+    - name: Enable Debug Logging
+      env:
+        ACTIONS_RUNNER_DEBUG: "true"
+        ACTIONS_STEP_DEBUG: "true"
+      run: echo "Debug logging enabled"
+
     - name: Disable Firewall Profiles
       run: |
         try {
@@ -23,7 +29,7 @@ jobs:
         }
 
     - name: Install Necessary Packages
-      continue-on-error: true
+      timeout-minutes: 60  # Add timeout for package installation
       run: |
         function Install-PackageWithRetry {
             param ([string]$packageName)
@@ -32,6 +38,7 @@ jobs:
             while ($retryCount -lt $maxRetries) {
                 try {
                     choco install $packageName -y
+                    Write-Host "$packageName installed successfully"
                     return
                 } catch {
                     Write-Host "Retrying $packageName install ($($retryCount+1)/$maxRetries)"
@@ -45,46 +52,54 @@ jobs:
         Install-PackageWithRetry -packageName "googlechrome"
 
     - name: Download and Extract Free Fire Ripper
-      continue-on-error: true
+      timeout-minutes: 30  # Add timeout for download and extraction
       run: |
         cd C:\Users\$Env:USERNAME\Documents
         try {
           Invoke-WebRequest -Uri "https://drive.usercontent.google.com/download?id=11EUFz6hufNT1g56-CmOJw9_KxMERZxhe&export=download" -OutFile ffripper.zip
           7z x ffripper.zip -y
+          Write-Host "Download and extraction completed successfully"
         } catch {
           Write-Host "Download or extraction failed."
           exit 1
         }
 
     - name: Start Chrome Remote Desktop
-      continue-on-error: true
+      timeout-minutes: 30  # Add timeout for starting Chrome Remote Desktop
       run: |
         function Start-RemoteDesktop {
           $paths = @("${Env:PROGRAMFILES(X86)}\Google\Chrome Remote Desktop\CurrentVersion\remoting_start_host.exe", "${Env:PROGRAMFILES}\Google\Chrome Remote Desktop\CurrentVersion\remoting_start_host.exe")
           foreach ($path in $paths) {
-              if (Test-Path $path) { & $path; return }
+              if (Test-Path $path) { 
+                Write-Host "Starting Chrome Remote Desktop"
+                & $path
+                return 
+              }
           }
           Write-Host "Chrome Remote Desktop's remoting_start_host.exe not found."
         }
         Start-RemoteDesktop
 
     - name: Create Symbolic Links
+      timeout-minutes: 15
       run: |
         New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\FenixGaga\Engine\ProjectTitan.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Free Fire.lnk"
         New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\ninjaripper\x86\NinjaRipper.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Ninjaripper.lnk"
         New-Item -ItemType SymbolicLink -Target "C:\Users\$Env:USERNAME\Documents\noesis\Noesis64.exe" -Path "C:\Users\$Env:USERNAME\Desktop\Noesis.lnk"
+        Write-Host "Symbolic links created successfully"
 
     - name: Start Remote Desktop Session
-      continue-on-error: true
+      timeout-minutes: 60
       run: |
         Write-Host "Connecting to VM with Remote Desktop"
         ${{ inputs.code }} --pin=123456
 
     - name: Keep Connection Active
+      timeout-minutes: 360  # Ensure this step runs as long as possible
       run: |
         $i = 2000
         do {
-            Write-Host $i
+            Write-Host "Connection active: Iteration $i"
             Start-Sleep 60
             $i--
         } while ($i -gt 0)
